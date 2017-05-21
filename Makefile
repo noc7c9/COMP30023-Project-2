@@ -7,6 +7,7 @@
 
 CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99
+PORT = 4480
 
 OBJ = main.o
 EXE = server
@@ -23,11 +24,11 @@ clean:
 
 ## Clobber: Performs Clean and removes executable file.
 clobber: clean
-	rm -f $(EXE)
+	rm -f $(EXE) $(PORT)
 
 ## Run
 run: $(EXE)
-	./$(EXE)
+	./$(EXE) $(PORT)
 
 ## Test
 # test: $(EXE)
