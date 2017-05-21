@@ -9,7 +9,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99
 PORT = 4480
 
-OBJ = main.o
+OBJ = main.o server.o
 EXE = server
 
 VALGRIND_OPTS = -v --leak-check=full
@@ -39,4 +39,4 @@ run: $(EXE)
 # 	valgrind $(VALGRIND_OPTS) --log-file=valgrind.1.log ./$(EXE)
 
 ## Dependencies
-main.o:
+main.o: server.h
