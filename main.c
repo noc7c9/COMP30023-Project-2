@@ -13,30 +13,71 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <assert.h>
 
 #include "server.h"
 
-void basic_handler(int sockfd) {
-    char buffer[256];
-    bzero(buffer, 256);
-    int n = read(sockfd, buffer, 255);
+#define BUFLEN 1024
 
-    if (n < 0) {
-        perror("ERROR: reading from socket");
-        return;
+
+/*
+ * Handles communication with each individual client (ie each connection).
+ */
+void *client_handler(void *psockfd) {
+    int sockfd = *((int *) psockfd);
+    free(psockfd);
+
+    char buffer[BUFLEN + 1];
+    bzero(buffer, BUFLEN);
+    int read_n;
+
+    while (0 != (read_n = read(sockfd, buffer, BUFLEN))) {
+        if (read_n < 0) {
+            perror("ERROR: reading from socket");
+            return NULL;
+        }
+
+        buffer[read_n-1] = '\0'; // overwrites the newline
+
+        printf("Read message from client %d of len %d: [%s]\n", sockfd, read_n, buffer);
+
+        if (0 > write(sockfd, buffer, read_n)) {
+            perror("ERROR: writing to socket");
+            return NULL;
+        }
     }
 
-    printf("Here is the message: [%s]\n", buffer);
-
-    n = write(sockfd, "I got your message\n", 19);
-
-    if (n < 0) {
-        perror("ERROR: writing to socket");
-        return;
-    }
-
+    printf("Client %d disconnected\n", sockfd);
     close(sockfd);
+
+    return NULL;
 }
+
+
+/*
+ * A server handler function that spawns a detached thread to actually handle
+ * each connection.
+ */
+void handler_thread_spawner(int sockfd) {
+    // passing the sockfd in a proper manner
+    int *psockfd = malloc(sizeof(int));
+    assert(NULL != psockfd);
+    *psockfd = sockfd;
+
+    // threads should be created detached, as they don't return anything
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    // create the thread
+    pthread_t tid;
+    pthread_create(&tid, NULL, client_handler, (void *) psockfd);
+
+    // clean up
+    pthread_attr_destroy(&attr);
+}
+
 
 int main(int argc, char *argv[]) {
     int port;
@@ -48,7 +89,7 @@ int main(int argc, char *argv[]) {
 
     port = atoi(argv[1]);
 
-    server(port, basic_handler);
+    server(port, handler_thread_spawner);
 
     return 0;
 }

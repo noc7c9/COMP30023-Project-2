@@ -6,7 +6,7 @@
 #
 
 CC = gcc
-CFLAGS = -Wall -Wextra -std=gnu99
+CFLAGS = -Wall -Wextra -std=gnu99 -lpthread
 PORT = 4480
 
 OBJ = main.o server.o

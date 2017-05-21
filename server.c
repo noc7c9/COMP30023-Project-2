@@ -70,8 +70,5 @@ int server(int port, ConnectionHandler handler) {
 
         // hand the socket to the handler
         handler(client_socket);
-
-        // done! close the socket then listen for more
-        close(client_socket);
     }
 }
