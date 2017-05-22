@@ -44,19 +44,19 @@ void *client_handler(void *psockfd) {
                 break;
             case PONG:
                 sstp_write(sstp, ERRO,
-                        "PONG msgs are reserved for the server.\n");
+                        "PONG msgs are reserved for the server.");
                 break;
             case OKAY:
                 sstp_write(sstp, ERRO,
-                        "OKAY msgs are reserved for the server.\n");
+                        "OKAY msgs are reserved for the server.");
                 break;
             case ERRO:
                 sstp_write(sstp, ERRO,
-                        "ERRO msgs are reserved for the server.\n");
+                        "ERRO msgs are reserved for the server.");
                 break;
             default:
                 sstp_write(sstp, ERRO,
-                        "Malformed message.\n");
+                        "Malformed message.");
                 break;
         }
     }

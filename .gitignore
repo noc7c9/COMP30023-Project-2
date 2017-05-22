@@ -2,3 +2,6 @@ server
 server.exe
 *.o
 valgrind.*.log
+
+__pycache__/
+.cache/

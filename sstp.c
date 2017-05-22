@@ -20,10 +20,10 @@
 #define HEADER_LEN 4
 #define MAX_MSG_LEN HEADER_LEN + 1 + MAX_PAYLOAD_LEN + DELIMITER_LEN
 
-#define BUFLEN 256 // TODO: choose a smarter value
-
 struct SSTPStream {
     int sockfd;
+    char buffer[MAX_MSG_LEN + 1];
+    int buffer_len;
 };
 
 SSTPStream *sstp_init(int sockfd) {
@@ -31,46 +31,91 @@ SSTPStream *sstp_init(int sockfd) {
     assert(NULL != stream);
 
     stream->sockfd = sockfd;
+    stream->buffer_len = 0;
 
     return stream;
 }
 
 int sstp_read(SSTPStream *stream, SSTPMsg *msg) {
-    char header[HEADER_LEN];
+    char buffer[MAX_MSG_LEN + 1];
+    int buffer_len = 0;
+    int overflow = 0;
+    char *match = NULL;
     int read_n;
 
-    // TODO: for now a naive implementation that assumes sockets just work
-    read_n = recv(stream->sockfd, header, HEADER_LEN, 0);
-    if (read_n <= 0) {
-        return read_n;
+    // populate buffer with the previous call's buffer contents
+    if (stream->buffer_len > 0) {
+        strncpy(buffer, stream->buffer, stream->buffer_len);
+        buffer_len = stream->buffer_len;
+        stream->buffer_len = 0;
+    } else { // otherwise, buffer should start as an empty string
+        buffer[0] = '\0';
     }
-    header[read_n] = '\0';
 
-    // figure out which message type it is
-    printf("RECV[%s]\n", header);
-    if (0 == strncmp("PING", header, HEADER_LEN)) {
-        msg->type = PING;
+    // read until hitting a delimiter
+    while (1) {
+        // look for the delimiter
+        match = strstr(buffer, DELIMITER);
+        if (match != NULL) { // found it!
+            // include the delimiter in the match
+            match += DELIMITER_LEN;
 
-    } else if (0 == strncmp("PONG", header, HEADER_LEN)) {
-        msg->type = PONG;
+            // keep the rest of the buffer for next call
+            strcpy(stream->buffer, match);
+            stream->buffer_len = buffer_len - (match - buffer);
 
-    } else if (0 == strncmp("OKAY", header, HEADER_LEN)) {
-        msg->type = OKAY;
+            // terminate the match
+            buffer[match - buffer] = '\0';
 
-    } else if (0 == strncmp("ERRO", header, HEADER_LEN)) {
-        msg->type = ERRO;
+            // stop reading and start processing the match
+            break;
+        }
 
-    } else if (0 == strncmp("SOLN", header, HEADER_LEN)) {
-        msg->type = SOLN;
+        // if buffer is completely filled up without a delimiter, then the
+        // message is too long
+        if (buffer_len == MAX_MSG_LEN) {
+            // so reset the buffer, but mark the message as having overflowed
+            overflow += buffer_len;
+            buffer_len = 0;
+        }
 
-    } else if (0 == strncmp("WORK", header, HEADER_LEN)) {
-        msg->type = WORK;
+        // read in more data from the socket
+        read_n = recv(stream->sockfd, buffer + buffer_len, MAX_MSG_LEN - buffer_len, 0);
+        buffer_len += read_n;
 
-    } else if (0 == strncmp("ABRT", header, HEADER_LEN)) {
-        msg->type = ABRT;
+        buffer[buffer_len] = '\0';
+        printf("[%s|%ld]\n", buffer, strlen(buffer));
 
-    } else {
-        msg->type = UNRECOGNIZED;
+        // stop if an error occurs
+        if (read_n <= 0) {
+            return read_n;
+        }
+    }
+    printf("---{%s|%ld}---\n", buffer, strlen(buffer));
+
+    msg->type = UNRECOGNIZED;
+    if (overflow ==  0) {
+        if (0 == strncmp("PING", buffer, HEADER_LEN)) {
+            msg->type = PING;
+
+        } else if (0 == strncmp("PONG", buffer, HEADER_LEN)) {
+            msg->type = PONG;
+
+        } else if (0 == strncmp("OKAY", buffer, HEADER_LEN)) {
+            msg->type = OKAY;
+
+        } else if (0 == strncmp("ERRO", buffer, HEADER_LEN)) {
+            msg->type = ERRO;
+
+        } else if (0 == strncmp("SOLN", buffer, HEADER_LEN)) {
+            msg->type = SOLN;
+
+        } else if (0 == strncmp("WORK", buffer, HEADER_LEN)) {
+            msg->type = WORK;
+
+        } else if (0 == strncmp("ABRT", buffer, HEADER_LEN)) {
+            msg->type = ABRT;
+        }
     }
 
     return 1; // success
