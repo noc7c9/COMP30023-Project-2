@@ -17,8 +17,7 @@
 #include <assert.h>
 
 #include "server.h"
-
-#define BUFLEN 1024
+#include "sstp.h"
 
 
 /*
@@ -28,23 +27,37 @@ void *client_handler(void *psockfd) {
     int sockfd = *((int *) psockfd);
     free(psockfd);
 
-    char buffer[BUFLEN + 1];
-    bzero(buffer, BUFLEN);
-    int read_n;
+    SSTPStream *sstp = sstp_init(sockfd);
 
-    while (0 != (read_n = read(sockfd, buffer, BUFLEN))) {
-        if (read_n < 0) {
+    SSTPMsg msg;
+
+    int res;
+    while (0 != (res = sstp_read(sstp, &msg))) {
+        if (res < 0) {
             perror("ERROR: reading from socket");
             return NULL;
         }
 
-        buffer[read_n-1] = '\0'; // overwrites the newline
-
-        printf("Read message from client %d of len %d: [%s]\n", sockfd, read_n, buffer);
-
-        if (0 > write(sockfd, buffer, read_n)) {
-            perror("ERROR: writing to socket");
-            return NULL;
+        switch (msg.type) {
+            case PING:
+                sstp_write(sstp, PONG, NULL);
+                break;
+            case PONG:
+                sstp_write(sstp, ERRO,
+                        "PONG msgs are reserved for the server.\n");
+                break;
+            case OKAY:
+                sstp_write(sstp, ERRO,
+                        "OKAY msgs are reserved for the server.\n");
+                break;
+            case ERRO:
+                sstp_write(sstp, ERRO,
+                        "ERRO msgs are reserved for the server.\n");
+                break;
+            default:
+                sstp_write(sstp, ERRO,
+                        "Malformed message.\n");
+                break;
         }
     }
 

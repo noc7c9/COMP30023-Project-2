@@ -9,7 +9,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99 -lpthread
 PORT = 4480
 
-OBJ = main.o server.o
+OBJ = main.o server.o sstp.o
 EXE = server
 
 VALGRIND_OPTS = -v --leak-check=full
@@ -24,7 +24,7 @@ clean:
 
 ## Clobber: Performs Clean and removes executable file.
 clobber: clean
-	rm -f $(EXE) $(PORT)
+	rm -f $(EXE)
 
 ## Run
 run: $(EXE)
@@ -39,4 +39,6 @@ run: $(EXE)
 # 	valgrind $(VALGRIND_OPTS) --log-file=valgrind.1.log ./$(EXE)
 
 ## Dependencies
-main.o: server.h
+main.o: server.h sstp.h
+server.o: server.h
+sstp.o: sstp.h
