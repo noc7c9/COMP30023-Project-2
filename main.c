@@ -16,8 +16,76 @@
 #include <pthread.h>
 #include <assert.h>
 
+#include "log.h"
 #include "server.h"
 #include "sstp-socket-wrapper.h"
+
+#define MAX_LOG_LEN 512
+
+
+/*
+ * Helper to log sstp messages.
+ */
+void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload) {
+    char *header;
+    switch (type) {
+        case PING: header = "PING"; break;
+        case PONG: header = "PONG"; break;
+        case OKAY: header = "OKAY"; break;
+        case ERRO: header = "ERRO"; break;
+        case SOLN: header = "SOLN"; break;
+        case WORK: header = "WORK"; break;
+        case ABRT: header = "ABRT"; break;
+        default:   header = "Malformed Message"; // invalid so do nothing
+    }
+
+    // create the message
+    char buf[MAX_LOG_LEN];
+    switch (type) {
+        // no payload
+        case PING:
+        case PONG:
+        case OKAY:
+        case ABRT:
+        case MALFORMED:
+            snprintf(buf, MAX_LOG_LEN, "%s%s",
+                    prefix, header);
+            break;
+        // with payload
+        case SOLN:
+        case WORK:
+        case ERRO:
+            snprintf(buf, MAX_LOG_LEN, "%s%s %s",
+                    prefix, header, payload);
+            break;
+    }
+    log_print(logger, buf);
+}
+
+
+/*
+ * Wrapper around sstp_read that logs the call.
+ */
+int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg) {
+    int res = sstp_read(sstp, msg);
+    if (res > 0) { // log only if successful
+        sstp_log(logger, "Recieved: ", msg->type, msg->payload);
+    }
+    return res;
+}
+
+
+/*
+ * Wrapper around sstp_write that logs the call.
+ */
+int sstp_log_write(SSTPStream *sstp, Logger *logger,
+        SSTPMsgType type, char payload[]) {
+    int res = sstp_write(sstp, type, payload);
+    if (res == 0) { // log only if successful
+        sstp_log(logger, "Sending:  ", type, payload);
+    }
+    return res;
+}
 
 
 /*
@@ -27,12 +95,15 @@ void *client_handler(void *pconn) {
     Connection conn = *((Connection *) pconn);
     free(pconn);
 
+    Logger *logger = log_init(conn);
     SSTPStream *sstp = sstp_init(conn.sockfd);
+
+    log_print(logger, "Connected");
 
     SSTPMsg msg;
 
     int res;
-    while (0 != (res = sstp_read(sstp, &msg))) {
+    while (0 != (res = sstp_log_read(sstp, logger, &msg))) {
         if (res < 0) {
             perror("ERROR: reading from socket");
             return NULL;
@@ -40,28 +111,32 @@ void *client_handler(void *pconn) {
 
         switch (msg.type) {
             case PING:
-                sstp_write(sstp, PONG, NULL);
+                sstp_log_write(sstp, logger, PONG, NULL);
                 break;
             case PONG:
-                sstp_write(sstp, ERRO,
+                sstp_log_write(sstp, logger, ERRO,
                         "PONG msgs are reserved for the server.");
                 break;
             case OKAY:
-                sstp_write(sstp, ERRO,
+                sstp_log_write(sstp, logger, ERRO,
                         "OKAY msgs are reserved for the server.");
                 break;
             case ERRO:
-                sstp_write(sstp, ERRO,
+                sstp_log_write(sstp, logger, ERRO,
                         "ERRO msgs are reserved for the server.");
                 break;
             default:
-                sstp_write(sstp, ERRO,
+                sstp_log_write(sstp, logger, ERRO,
                         "Malformed message.");
                 break;
         }
     }
 
-    printf("Client %s disconnected\n", conn.ip);
+    log_print(logger, "Disconnected");
+
+    // clean up
+    sstp_destroy(sstp);
+    log_destroy(logger);
     close(conn.sockfd);
 
     return NULL;
@@ -101,6 +176,8 @@ int main(int argc, char *argv[]) {
     }
 
     port = atoi(argv[1]);
+
+    log_global_init();
 
     server(port, handler_thread_spawner);
 
