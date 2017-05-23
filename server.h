@@ -11,11 +11,21 @@
 
 #pragma once
 
+#include <arpa/inet.h>
+
+/*
+ * Struct for a single connection.
+ */
+typedef struct {
+    int sockfd;
+    char ip[INET_ADDRSTRLEN];
+} Connection;
+
 /*
  * Typedef for the connection handlers which are function pointers,
  * that handle communication with clients.
  */
-typedef void (*ConnectionHandler)(int sockfd);
+typedef void (*ConnectionHandler)(Connection conn);
 
 /*
  * The main server, takes the port to connect to and a connection handler to

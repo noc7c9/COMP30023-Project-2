@@ -23,11 +23,11 @@
 /*
  * Handles communication with each individual client (ie each connection).
  */
-void *client_handler(void *psockfd) {
-    int sockfd = *((int *) psockfd);
-    free(psockfd);
+void *client_handler(void *pconn) {
+    Connection conn = *((Connection *) pconn);
+    free(pconn);
 
-    SSTPStream *sstp = sstp_init(sockfd);
+    SSTPStream *sstp = sstp_init(conn.sockfd);
 
     SSTPMsg msg;
 
@@ -61,8 +61,8 @@ void *client_handler(void *psockfd) {
         }
     }
 
-    printf("Client %d disconnected\n", sockfd);
-    close(sockfd);
+    printf("Client %s disconnected\n", conn.ip);
+    close(conn.sockfd);
 
     return NULL;
 }
@@ -72,11 +72,11 @@ void *client_handler(void *psockfd) {
  * A server handler function that spawns a detached thread to actually handle
  * each connection.
  */
-void handler_thread_spawner(int sockfd) {
-    // passing the sockfd in a proper manner
-    int *psockfd = malloc(sizeof(int));
-    assert(NULL != psockfd);
-    *psockfd = sockfd;
+void handler_thread_spawner(Connection conn) {
+    // alloc to passing the connection to the thread
+    Connection *pconn = malloc(sizeof(Connection));
+    assert(NULL != pconn);
+    *pconn = conn;
 
     // threads should be created detached, as they don't return anything
     pthread_attr_t attr;
@@ -85,7 +85,7 @@ void handler_thread_spawner(int sockfd) {
 
     // create the thread
     pthread_t tid;
-    pthread_create(&tid, NULL, client_handler, (void *) psockfd);
+    pthread_create(&tid, NULL, client_handler, (void *) pconn);
 
     // clean up
     pthread_attr_destroy(&attr);

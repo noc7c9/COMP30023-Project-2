@@ -57,19 +57,25 @@ int server(int port, ConnectionHandler handler) {
     // the infinite accept loop
     // all incoming connections are handed off to the given handler
     struct sockaddr_in client_addr;
-    int client_socket;
     socklen_t client_addr_len;
+    Connection conn;
     while (1) {
         client_addr_len = sizeof(client_addr);
-        client_socket = accept(listener_socket,
+        conn.sockfd = accept(listener_socket,
                 (struct sockaddr *) &client_addr, &client_addr_len);
-        if (client_socket == -1) {
+
+        if (conn.sockfd == -1) {
             // log the error, but then continue
             perror("ERROR: on accept");
             continue;
         }
 
+        // capture the client's ip
+        inet_ntop(client_addr.sin_family, &client_addr.sin_addr,
+            conn.ip, sizeof(conn.ip));
+
         // hand the socket to the handler
-        handler(client_socket);
+        handler(conn);
     }
+
 }
