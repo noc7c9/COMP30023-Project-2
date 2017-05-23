@@ -3,6 +3,7 @@
 import pytest
 import types
 import socket as socketlib
+import time
 
 BUFFER_SIZE = 100
 
@@ -70,10 +71,12 @@ def test_two_part_message(socket):
 def test_partial_message(socket):
     socket.send(b'PING\r\nPI')
     socket.send(b'NG\r\n')
+    time.sleep(0.5)
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
 def test_double_message(socket):
     socket.send(b'PING\r\nPING\r\n')
+    time.sleep(0.5)
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
 def test_too_sort_message(socket):

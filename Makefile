@@ -31,12 +31,14 @@ run: $(EXE)
 	./$(EXE) $(PORT)
 
 ## Test
-# test: $(EXE)
-# 	./$(EXE) -f testdata/input.txt -a first -m 1000 -q 7 | diff - testdata/output.txt
+test: $(EXE)
+	# make sure the server is running
+	pytest -xv
 
 ## Valgrind
-# valgrind: $(EXE)
-# 	valgrind $(VALGRIND_OPTS) --log-file=valgrind.1.log ./$(EXE)
+valgrind: $(EXE)
+	# run `make test`
+	valgrind $(VALGRIND_OPTS) --log-file=valgrind.log ./$(EXE) $(PORT)
 
 ## Dependencies
 main.o: server.o sstp-socket-wrapper.o
