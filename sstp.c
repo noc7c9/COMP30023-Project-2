@@ -30,7 +30,7 @@ SSTPMsgType header_to_type(char *header) {
     } else if (0 == strncmp("ABRT", header, HEADER_LEN)) {
         return ABRT;
     } else {
-        return UNRECOGNIZED;
+        return MALFORMED;
     }
 }
 
@@ -63,7 +63,7 @@ void sstp_parse(char *src, int n, SSTPMsg *msg) {
         // if there is a payload it should be exactly the right length
         : (HEADER_LEN + 1 + msg->payload_len + DELIMITER_LEN) != n;
     if (invalid_length) {
-        msg->type = UNRECOGNIZED;
+        msg->type = MALFORMED;
         msg->payload_len = 0;
         return;
     }
@@ -87,7 +87,7 @@ void copy_header(SSTPMsgType type, char *dst) {
         case SOLN: strncpy(dst, "SOLN", HEADER_LEN); break;
         case WORK: strncpy(dst, "WORK", HEADER_LEN); break;
         case ABRT: strncpy(dst, "ABRT", HEADER_LEN); break;
-        case UNRECOGNIZED: break; // invalid so do nothing
+        case MALFORMED: break; // invalid so do nothing
     }
 }
 
@@ -99,7 +99,7 @@ int min(int a, int b) {
 }
 
 int sstp_build(SSTPMsg *msg, char *dst) {
-    if (msg->type == UNRECOGNIZED) return -1;
+    if (msg->type == MALFORMED) return -1;
 
     int length = 0;
 

@@ -28,7 +28,7 @@ typedef enum {
     PING, PONG,
     OKAY, ERRO,
     SOLN, WORK, ABRT,
-    UNRECOGNIZED
+    MALFORMED
 } SSTPMsgType;
 
 /*
