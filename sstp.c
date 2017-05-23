@@ -36,6 +36,26 @@ SSTPStream *sstp_init(int sockfd) {
     return stream;
 }
 
+/*
+ * Alternative to strstr that ignores \0 characters in the haystack and instead
+ * scans upto n characters.
+ * needle should still be a null-terminated string.
+ */
+char *strnstr(char *haystack, char *needle, int n) {
+    char *p = haystack;
+    int needle_len = strlen(needle);
+    n -= needle_len - 1; // don't scan off the edge
+
+    while (p - haystack < n) {
+        if (0 == strncmp(p, needle, needle_len)) {
+            return p;
+        }
+        p++;
+    }
+
+    return NULL; // not found
+}
+
 int sstp_read(SSTPStream *stream, SSTPMsg *msg) {
     char buffer[MAX_MSG_LEN + 1];
     int buffer_len = 0;
@@ -55,7 +75,7 @@ int sstp_read(SSTPStream *stream, SSTPMsg *msg) {
     // read until hitting a delimiter
     while (1) {
         // look for the delimiter
-        match = strstr(buffer, DELIMITER);
+        match = strnstr(buffer, DELIMITER, buffer_len);
         if (match != NULL) { // found it!
             // include the delimiter in the match
             match += DELIMITER_LEN;
