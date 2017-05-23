@@ -9,38 +9,13 @@
 
 #pragma once
 
-#define ERRO_PAYLOAD_LEN 40
-#define SOLN_PAYLOAD_LEN 90 // 8 + 1 + 64 + 1 + 16
-#define WORK_PAYLOAD_LEN 93 // 8 + 1 + 64 + 1 + 16 + 1 + 2
-#define MAX_PAYLOAD_LEN WORK_PAYLOAD_LEN
-
-/*
- * All the message types.
- */
-typedef enum {
-    PING,
-    PONG,
-    OKAY,
-    ERRO,
-    SOLN,
-    WORK,
-    ABRT,
-    UNRECOGNIZED
-} SSTPMsgType;
+#include "sstp.h"
 
 /*
  * The struct to store the state of the socket.
  * Internals are private.
  */
 typedef struct SSTPStream SSTPStream;
-
-/*
- * The struct that represents a message
- */
-typedef struct {
-    SSTPMsgType type;
-    char payload[MAX_PAYLOAD_LEN];
-} SSTPMsg;
 
 /*
  * Initializes a sstp stream struct for the given socket file descriptor.

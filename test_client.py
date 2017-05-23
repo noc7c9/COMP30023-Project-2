@@ -76,6 +76,13 @@ def test_double_message(socket):
     socket.send(b'PING\r\nPING\r\n')
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
+def test_too_sort_message(socket):
+    socket.send(b'ERRO unpadded short message\r\n')
+    assert socket.recv() == to_sstp('ERRO Malformed message.')
+    # still works after that though
+    socket.send(b'PING\r\n')
+    assert socket.recv() == b'PONG\r\n'
+
 def test_too_long_message(socket):
     socket.send(b'PING' + 2000 * b' ' + b'\r\n')
     assert socket.recv() == to_sstp('ERRO Malformed message.')
@@ -94,7 +101,7 @@ def test_repeated_send_read(socket):
         assert socket.recv() == b'PONG\r\n'
 
 def test_null_terminator_before_delimiter(socket):
-    socket.send(b'ERRO msg \0 more garbage \r\nPING')
+    socket.send(b'ERRO msg' + (sstp_msg_lengths[b'ERRO']-3) * b'\0' + b'\r\nPING')
     socket.send(b'\r\n')
     assert socket.recv() == (
         to_sstp('ERRO ERRO msgs are reserved for the server.')

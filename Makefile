@@ -9,7 +9,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c99 -lpthread
 PORT = 4480
 
-OBJ = main.o server.o sstp.o
+OBJ = main.o server.o sstp-socket-wrapper.o sstp.o
 EXE = server
 
 VALGRIND_OPTS = -v --leak-check=full
@@ -39,6 +39,7 @@ run: $(EXE)
 # 	valgrind $(VALGRIND_OPTS) --log-file=valgrind.1.log ./$(EXE)
 
 ## Dependencies
-main.o: server.h sstp-socket-wrapper.h
+main.o: server.o sstp-socket-wrapper.o
 server.o: server.h
-sstp-socket-wrapper.o: sstp-socket-wrapper.h
+sstp.o: sstp.h
+sstp-socket-wrapper.o: sstp-socket-wrapper.h sstp.o
