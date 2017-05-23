@@ -13,7 +13,7 @@
 #include <strings.h>
 #include <sys/socket.h>
 
-#include "sstp.h"
+#include "sstp-socket-wrapper.h"
 
 #define DELIMITER "\r\n"
 #define DELIMITER_LEN 2

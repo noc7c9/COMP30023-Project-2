@@ -2,8 +2,8 @@
  * COMP30023 Computer Systems Project 2
  * Ibrahim Athir Saleem (isaleem) (682989)
  *
- * The module responsible for reading from and writing to a network socket using
- * the Simple Stratum Text Protocol (SSTP).
+ * The module that provides functions for reading from and writing to a network
+ * socket using the Simple Stratum Text Protocol (SSTP).
  *
  */
 

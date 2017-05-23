@@ -39,6 +39,6 @@ run: $(EXE)
 # 	valgrind $(VALGRIND_OPTS) --log-file=valgrind.1.log ./$(EXE)
 
 ## Dependencies
-main.o: server.h sstp.h
+main.o: server.h sstp-socket-wrapper.h
 server.o: server.h
-sstp.o: sstp.h
+sstp-socket-wrapper.o: sstp-socket-wrapper.h

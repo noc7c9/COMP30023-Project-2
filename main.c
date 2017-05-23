@@ -17,7 +17,7 @@
 #include <assert.h>
 
 #include "server.h"
-#include "sstp.h"
+#include "sstp-socket-wrapper.h"
 
 
 /*
