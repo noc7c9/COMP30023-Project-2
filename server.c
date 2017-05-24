@@ -16,6 +16,10 @@
 
 #define CONNECTION_BACKLOG 10
 
+
+/***** Public functions
+ */
+
 int server(int port, ConnectionHandler handler) {
     // create tcp socket
     int listener_socket = socket(AF_INET, SOCK_STREAM, 0);

@@ -26,110 +26,37 @@
 #define MAX_LOG_LEN 512
 
 
-/*
- * Parse the given SOLN message.
+/***** Helper function prototypes
  */
-void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution) {
-    // read difficulty
-    sscanf(msg, "%x", difficulty);
-    msg += 8 + 1;
 
-    // read seed
-    char copy[65]; // create a copy as the string needs to be modified
-    strncpy(copy, msg, 64);
-    copy[64] = '\0';
-    // the actual reading
-    int j = 32;
-    for (int i = 62; i >= 0; i -= 2) {
-        copy[i+2] = '\0';
-        seed[--j] = strtoul(copy + i, NULL, 16);
-    }
-    msg += 64 + 1;
-
-    // read solution
-    sscanf(msg, "%lx", solution);
-}
+void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution);
+int soln_verify(char *soln_msg);
+void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload);
+int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg);
+int sstp_log_write(SSTPStream *sstp, Logger *logger, SSTPMsgType type, char payload[]);
+void *client_handler(void *pconn);
+void handler_thread_spawner(Connection conn);
 
 
-/*
- * Verify the given SOLN message.
- * Returns 1 if it is valid and 0 otherwise.
+/***** Main functions
  */
-int soln_verify(char *soln_msg) {
-    uint32_t difficulty;
-    BYTE seed[32];
-    uint64_t solution;
 
-    soln_parse(soln_msg, &difficulty, seed, &solution);
+int main(int argc, char *argv[]) {
+    int port;
 
-    return hashcash_verify(difficulty, seed, solution);
-}
-
-
-/*
- * Helper to log sstp messages.
- */
-void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload) {
-    char *header;
-    switch (type) {
-        case PING: header = "PING"; break;
-        case PONG: header = "PONG"; break;
-        case OKAY: header = "OKAY"; break;
-        case ERRO: header = "ERRO"; break;
-        case SOLN: header = "SOLN"; break;
-        case WORK: header = "WORK"; break;
-        case ABRT: header = "ABRT"; break;
-        default:   header = "Malformed Message"; // invalid so do nothing
+    if (argc < 2) {
+        fprintf(stderr, "ERROR: no port provided\n");
+        exit(1);
     }
 
-    // create the message
-    char buf[MAX_LOG_LEN];
-    switch (type) {
-        // no payload
-        case PING:
-        case PONG:
-        case OKAY:
-        case ABRT:
-        case MALFORMED:
-            snprintf(buf, MAX_LOG_LEN, "%s%s",
-                    prefix, header);
-            break;
-        // with payload
-        case SOLN:
-        case WORK:
-        case ERRO:
-            snprintf(buf, MAX_LOG_LEN, "%s%s %s",
-                    prefix, header, payload);
-            break;
-    }
-    log_print(logger, buf);
+    port = atoi(argv[1]);
+
+    log_global_init();
+
+    server(port, handler_thread_spawner);
+
+    return 0;
 }
-
-
-/*
- * Wrapper around sstp_read that logs the call.
- */
-int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg) {
-    int res = sstp_read(sstp, msg);
-    if (res > 0) { // log only if successful
-        sstp_log(logger, "Recieved: ", msg->type, msg->payload);
-    }
-    return res;
-}
-
-
-/*
- * Wrapper around sstp_write that logs the call.
- */
-int sstp_log_write(SSTPStream *sstp, Logger *logger,
-        SSTPMsgType type, char payload[]) {
-    int res = sstp_write(sstp, type, payload);
-    if (res == 0) { // log only if successful
-        sstp_log(logger, "Sending:  ", type, payload);
-    }
-    return res;
-}
-
 
 /*
  * Handles communication with each individual client (ie each connection).
@@ -193,7 +120,6 @@ void *client_handler(void *pconn) {
     return NULL;
 }
 
-
 /*
  * A server handler function that spawns a detached thread to actually handle
  * each connection.
@@ -218,19 +144,104 @@ void handler_thread_spawner(Connection conn) {
 }
 
 
-int main(int argc, char *argv[]) {
-    int port;
+/***** Helper functions
+ */
 
-    if (argc < 2) {
-        fprintf(stderr, "ERROR: no port provided\n");
-        exit(1);
+/*
+ * Parse the given SOLN message.
+ */
+void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution) {
+    // read difficulty
+    sscanf(msg, "%x", difficulty);
+    msg += 8 + 1;
+
+    // read seed
+    char copy[65]; // create a copy as the string needs to be modified
+    strncpy(copy, msg, 64);
+    copy[64] = '\0';
+    // the actual reading
+    int j = 32;
+    for (int i = 62; i >= 0; i -= 2) {
+        copy[i+2] = '\0';
+        seed[--j] = strtoul(copy + i, NULL, 16);
+    }
+    msg += 64 + 1;
+
+    // read solution
+    sscanf(msg, "%lx", solution);
+}
+
+/*
+ * Verify the given SOLN message.
+ * Returns 1 if it is valid and 0 otherwise.
+ */
+int soln_verify(char *soln_msg) {
+    uint32_t difficulty;
+    BYTE seed[32];
+    uint64_t solution;
+
+    soln_parse(soln_msg, &difficulty, seed, &solution);
+
+    return hashcash_verify(difficulty, seed, solution);
+}
+
+/*
+ * Helper to log sstp messages.
+ */
+void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload) {
+    char *header;
+    switch (type) {
+        case PING: header = "PING"; break;
+        case PONG: header = "PONG"; break;
+        case OKAY: header = "OKAY"; break;
+        case ERRO: header = "ERRO"; break;
+        case SOLN: header = "SOLN"; break;
+        case WORK: header = "WORK"; break;
+        case ABRT: header = "ABRT"; break;
+        default:   header = "Malformed Message"; // invalid so do nothing
     }
 
-    port = atoi(argv[1]);
+    // create the message
+    char buf[MAX_LOG_LEN];
+    switch (type) {
+        // no payload
+        case PING:
+        case PONG:
+        case OKAY:
+        case ABRT:
+        case MALFORMED:
+            snprintf(buf, MAX_LOG_LEN, "%s%s",
+                    prefix, header);
+            break;
+        // with payload
+        case SOLN:
+        case WORK:
+        case ERRO:
+            snprintf(buf, MAX_LOG_LEN, "%s%s %s",
+                    prefix, header, payload);
+            break;
+    }
+    log_print(logger, buf);
+}
 
-    log_global_init();
+/*
+ * Wrapper around sstp_read that logs the call.
+ */
+int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg) {
+    int res = sstp_read(sstp, msg);
+    if (res > 0) { // log only if successful
+        sstp_log(logger, "Recieved: ", msg->type, msg->payload);
+    }
+    return res;
+}
 
-    server(port, handler_thread_spawner);
-
-    return 0;
+/*
+ * Wrapper around sstp_write that logs the call.
+ */
+int sstp_log_write(SSTPStream *sstp, Logger *logger, SSTPMsgType type, char payload[]) {
+    int res = sstp_write(sstp, type, payload);
+    if (res == 0) { // log only if successful
+        sstp_log(logger, "Sending:  ", type, payload);
+    }
+    return res;
 }

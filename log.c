@@ -26,9 +26,23 @@
 FILE *log_fd = NULL;
 pthread_mutex_t mutex;
 
+
+/***** Private structs
+ */
+
 struct Logger {
     char header[HEADER_LEN];
 };
+
+
+/***** Helper function prototypes
+ */
+
+void get_time_str(char *dst, int maxlen);
+
+
+/***** Public functions
+ */
 
 void log_global_init() {
     if (log_fd != NULL) { return; }
@@ -44,16 +58,6 @@ Logger *log_init(Connection conn) {
     sprintf(logger->header, "[ %s (%d) %%s ] ", conn.ip, conn.sockfd);
 
     return logger;
-}
-
-void get_time_str(char *dst, int maxlen) {
-    time_t rawtime;
-    struct tm *timeinfo;
-
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-
-    strftime(dst, maxlen, TIME_FORMAT, timeinfo);
 }
 
 void log_print(Logger *logger, char *msg) {
@@ -74,4 +78,21 @@ void log_print(Logger *logger, char *msg) {
 
 void log_destroy(Logger *logger) {
     free(logger);
+}
+
+
+/***** Helper functions
+ */
+
+/*
+ * Simple helper function to grab the current time with a pretty format.
+ */
+void get_time_str(char *dst, int maxlen) {
+    time_t rawtime;
+    struct tm *timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    strftime(dst, maxlen, TIME_FORMAT, timeinfo);
 }

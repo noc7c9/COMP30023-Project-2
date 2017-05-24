@@ -10,44 +10,18 @@
 
 #include "sstp.h"
 
-/*
- * Simple helper function to figure out the message type given the header as a
- * string.
+
+/***** Helper function prototypes
  */
-SSTPMsgType header_to_type(char *header) {
-    if (0 == strncmp("PING", header, HEADER_LEN)) {
-        return PING;
-    } else if (0 == strncmp("PONG", header, HEADER_LEN)) {
-        return PONG;
-    } else if (0 == strncmp("OKAY", header, HEADER_LEN)) {
-        return OKAY;
-    } else if (0 == strncmp("ERRO", header, HEADER_LEN)) {
-        return ERRO;
-    } else if (0 == strncmp("SOLN", header, HEADER_LEN)) {
-        return SOLN;
-    } else if (0 == strncmp("WORK", header, HEADER_LEN)) {
-        return WORK;
-    } else if (0 == strncmp("ABRT", header, HEADER_LEN)) {
-        return ABRT;
-    } else {
-        return MALFORMED;
-    }
-}
+
+SSTPMsgType header_to_type(char *header);
+int type_to_payload_len(SSTPMsgType type);
+void copy_header(SSTPMsgType type, char *dst);
+int min(int a, int b);
 
 
-/*
- * A simple helper function to get the (fixed) payload length for the given
- * message type.
+/***** Public functions
  */
-int type_to_payload_len(SSTPMsgType type) {
-    switch (type) {
-        case ERRO: return ERRO_PAYLOAD_LEN;
-        case SOLN: return SOLN_PAYLOAD_LEN;
-        case WORK: return WORK_PAYLOAD_LEN;
-        default:   return 0;
-    }
-}
-
 
 void sstp_parse(char *src, int n, SSTPMsg *msg) {
     // start by clearing out the msg object
@@ -72,30 +46,6 @@ void sstp_parse(char *src, int n, SSTPMsg *msg) {
     if (msg->payload_len != 0) {
         memcpy(msg->payload, src + HEADER_LEN + 1, msg->payload_len);
     }
-}
-
-/*
- * Helper to write the proper header based on the given type to the given
- * destination string.
- */
-void copy_header(SSTPMsgType type, char *dst) {
-    switch (type) {
-        case PING: strncpy(dst, "PING", HEADER_LEN); break;
-        case PONG: strncpy(dst, "PONG", HEADER_LEN); break;
-        case OKAY: strncpy(dst, "OKAY", HEADER_LEN); break;
-        case ERRO: strncpy(dst, "ERRO", HEADER_LEN); break;
-        case SOLN: strncpy(dst, "SOLN", HEADER_LEN); break;
-        case WORK: strncpy(dst, "WORK", HEADER_LEN); break;
-        case ABRT: strncpy(dst, "ABRT", HEADER_LEN); break;
-        case MALFORMED: break; // invalid so do nothing
-    }
-}
-
-/*
- * Integer min function
- */
-int min(int a, int b) {
-    return (a > b) ? b : a;
 }
 
 int sstp_build(SSTPMsg *msg, char *dst) {
@@ -132,4 +82,69 @@ int sstp_build(SSTPMsg *msg, char *dst) {
     length += DELIMITER_LEN;
 
     return length;
+}
+
+
+/***** Helper functions
+ */
+
+/*
+ * Simple helper function to figure out the message type given the header as a
+ * string.
+ */
+SSTPMsgType header_to_type(char *header) {
+    if (0 == strncmp("PING", header, HEADER_LEN)) {
+        return PING;
+    } else if (0 == strncmp("PONG", header, HEADER_LEN)) {
+        return PONG;
+    } else if (0 == strncmp("OKAY", header, HEADER_LEN)) {
+        return OKAY;
+    } else if (0 == strncmp("ERRO", header, HEADER_LEN)) {
+        return ERRO;
+    } else if (0 == strncmp("SOLN", header, HEADER_LEN)) {
+        return SOLN;
+    } else if (0 == strncmp("WORK", header, HEADER_LEN)) {
+        return WORK;
+    } else if (0 == strncmp("ABRT", header, HEADER_LEN)) {
+        return ABRT;
+    } else {
+        return MALFORMED;
+    }
+}
+
+/*
+ * A simple helper function to get the (fixed) payload length for the given
+ * message type.
+ */
+int type_to_payload_len(SSTPMsgType type) {
+    switch (type) {
+        case ERRO: return ERRO_PAYLOAD_LEN;
+        case SOLN: return SOLN_PAYLOAD_LEN;
+        case WORK: return WORK_PAYLOAD_LEN;
+        default:   return 0;
+    }
+}
+
+/*
+ * Helper to write the proper header based on the given type to the given
+ * destination string.
+ */
+void copy_header(SSTPMsgType type, char *dst) {
+    switch (type) {
+        case PING: strncpy(dst, "PING", HEADER_LEN); break;
+        case PONG: strncpy(dst, "PONG", HEADER_LEN); break;
+        case OKAY: strncpy(dst, "OKAY", HEADER_LEN); break;
+        case ERRO: strncpy(dst, "ERRO", HEADER_LEN); break;
+        case SOLN: strncpy(dst, "SOLN", HEADER_LEN); break;
+        case WORK: strncpy(dst, "WORK", HEADER_LEN); break;
+        case ABRT: strncpy(dst, "ABRT", HEADER_LEN); break;
+        case MALFORMED: break; // invalid so do nothing
+    }
+}
+
+/*
+ * Integer min function
+ */
+int min(int a, int b) {
+    return (a > b) ? b : a;
 }

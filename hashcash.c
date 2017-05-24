@@ -13,8 +13,8 @@
 
 #include "hashcash.h"
 
+
 /***** Helper function prototypes
- *
  */
 
 void uint256_init_with_value(BYTE *uint256, uint64_t value);
@@ -43,7 +43,7 @@ int hashcash_verify(uint32_t difficulty, BYTE *seed, uint64_t solution) {
 }
 
 
-/****** Private functions
+/***** Helper functions
  */
 
 /*
@@ -61,7 +61,6 @@ void uint256_init_with_value(BYTE *uint256, uint64_t value) {
         value = value >> 8;
     }
 }
-
 
 /*
  * Helper function to concatenate the given seed and nonce value,
@@ -81,7 +80,6 @@ void concat(BYTE *dst, BYTE *seed, uint64_t nonce) {
     }
 }
 
-
 /*
  * Hashes the given value using sha256 twice.
  */
@@ -96,7 +94,6 @@ void sha256twice(BYTE *hash, BYTE *data, int len) {
     sha256_update(&ctx, hash, 32);
     sha256_final(&ctx, hash);
 }
-
 
 /*
  * Converts the given difficulty value into the target value. (32-byte array)
