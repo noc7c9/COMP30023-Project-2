@@ -29,11 +29,15 @@
 /***** Helper function prototypes
  */
 
+uint64_t work_solve(char *msg);
+void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start,
+        uint8_t *worker_count);
 void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution);
 int soln_verify(char *soln_msg);
 void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload);
 int sstp_log_read(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg *msg);
-int sstp_log_write(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsgType type, char payload[]);
+int sstp_log_write(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsgType type,
+        char payload[]);
 void *client_handler(void *pconn);
 void handler_thread_spawner(Connection conn);
 
@@ -103,6 +107,12 @@ void *client_handler(void *pconn) {
                         "Not a valid solution.");
                 }
                 break;
+            case WORK:
+                // reuse the msg.payload to build the response
+                sprintf(msg.payload + 8 + 1 + 64 + 1,
+                        "%" PRIx64, work_solve(msg.payload));
+                sstp_log_write(sstp, logger, SOLN, msg.payload);
+                break;
             default:
                 sstp_log_write(sstp, logger, ERRO,
                         "Malformed message.");
@@ -148,11 +158,43 @@ void handler_thread_spawner(Connection conn) {
  */
 
 /*
+ * Parse the given WORK message.
+ */
+void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start, uint8_t *worker_count) {
+    // read everything but the worker count
+    soln_parse(msg, difficulty, seed, start);
+    msg += 8 + 1 + 64 + 1 + 16 + 1;
+
+    // read worker count
+    *worker_count = strtoul(msg, NULL, 16);
+}
+
+/*
+ * Find a valid nonce value for the given WORK msg.
+ */
+uint64_t work_solve(char *msg) {
+    uint32_t difficulty;
+    BYTE seed[32];
+    uint64_t nonce;
+    uint8_t worker_count;
+
+    work_parse(msg, &difficulty, seed, &nonce, &worker_count);
+
+    while (1) {
+        if (hashcash_verify(difficulty, seed, nonce)) {
+            return nonce;
+        } else {
+            nonce++;
+        }
+    }
+}
+
+/*
  * Parse the given SOLN message.
  */
 void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution) {
     // read difficulty
-    sscanf(msg, "%x", difficulty);
+    sscanf(msg, "%" PRIx32, difficulty);
     msg += 8 + 1;
 
     // read seed
@@ -168,7 +210,7 @@ void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution)
     msg += 64 + 1;
 
     // read solution
-    sscanf(msg, "%lx", solution);
+    sscanf(msg, "%" PRIx64, solution);
 }
 
 /*

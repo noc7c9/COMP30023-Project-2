@@ -139,3 +139,28 @@ def test_correct_soln_3(socket):
 def test_incorrect_soln(socket):
     socket.send(b'SOLN 1fffffff 1000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n')
     assert socket.recv() == to_sstp(b'ERRO Not a valid solution.')
+
+# @pytest.mark.skip
+def test_work_1(socket):
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
+    assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
+
+# @pytest.mark.skip
+def test_work_2(socket):
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
+    assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n'
+
+@pytest.mark.skip
+def test_work_3(socket):
+    socket.send(b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
+    assert socket.recv() == b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
+
+@pytest.mark.skip
+def test_work_4(socket):
+    socket.send(b'WORK 1dffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
+    assert socket.recv() == b'SOLN 1dffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023f6c072\r\n'
+
+@pytest.mark.skip
+def test_work_5(socket):
+    socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
+    assert socket.recv() == b'SOLN 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000026b9c904\r\n'
