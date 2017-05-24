@@ -32,8 +32,8 @@
 void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution);
 int soln_verify(char *soln_msg);
 void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload);
-int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg);
-int sstp_log_write(SSTPStream *sstp, Logger *logger, SSTPMsgType type, char payload[]);
+int sstp_log_read(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg *msg);
+int sstp_log_write(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsgType type, char payload[]);
 void *client_handler(void *pconn);
 void handler_thread_spawner(Connection conn);
 
@@ -66,7 +66,7 @@ void *client_handler(void *pconn) {
     free(pconn);
 
     Logger *logger = log_init(conn);
-    SSTPStream *sstp = sstp_init(conn.sockfd);
+    SSTPSocketWrapper *sstp = sstp_init(conn.sockfd);
 
     log_print(logger, "Connected");
 
@@ -227,7 +227,7 @@ void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload) {
 /*
  * Wrapper around sstp_read that logs the call.
  */
-int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg) {
+int sstp_log_read(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg *msg) {
     int res = sstp_read(sstp, msg);
     if (res > 0) { // log only if successful
         sstp_log(logger, "Recieved: ", msg->type, msg->payload);
@@ -238,7 +238,7 @@ int sstp_log_read(SSTPStream *sstp, Logger *logger, SSTPMsg *msg) {
 /*
  * Wrapper around sstp_write that logs the call.
  */
-int sstp_log_write(SSTPStream *sstp, Logger *logger, SSTPMsgType type, char payload[]) {
+int sstp_log_write(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsgType type, char payload[]) {
     int res = sstp_write(sstp, type, payload);
     if (res == 0) { // log only if successful
         sstp_log(logger, "Sending:  ", type, payload);

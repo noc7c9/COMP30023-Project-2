@@ -15,12 +15,12 @@
  * The struct to store the state of the socket.
  * Internals are private.
  */
-typedef struct SSTPStream SSTPStream;
+typedef struct SSTPSocketWrapper SSTPSocketWrapper;
 
 /*
  * Initializes a sstp stream struct for the given socket file descriptor.
  */
-SSTPStream *sstp_init(int sockfd);
+SSTPSocketWrapper *sstp_init(int sockfd);
 
 /*
  * Reads a single message from the socket
@@ -29,7 +29,7 @@ SSTPStream *sstp_init(int sockfd);
  *  0 if the client disconnects
  * -1 if an error occurs
  */
-int sstp_read(SSTPStream *stream, SSTPMsg *msg);
+int sstp_read(SSTPSocketWrapper *stream, SSTPMsg *msg);
 
 /*
  * Sends a single message of the given type and payload.
@@ -37,9 +37,9 @@ int sstp_read(SSTPStream *stream, SSTPMsg *msg);
  *  0 on success
  * -1 if an error occurs
  */
-int sstp_write(SSTPStream *stream, SSTPMsgType type, char payload[]);
+int sstp_write(SSTPSocketWrapper *stream, SSTPMsgType type, char payload[]);
 
 /*
  * Destroys the given sstp stream.
  */
-void sstp_destroy(SSTPStream *stream);
+void sstp_destroy(SSTPSocketWrapper *stream);

@@ -23,7 +23,7 @@
 /***** Private structs
  */
 
-struct SSTPStream {
+struct SSTPSocketWrapper {
     int sockfd;
     char buffer[MAX_MSG_LEN + 1];
     int buffer_len;
@@ -40,8 +40,8 @@ int sendall(int s, char *buf, int *len);
 /***** Public functions
  */
 
-SSTPStream *sstp_init(int sockfd) {
-    SSTPStream *stream = malloc(sizeof(SSTPStream));
+SSTPSocketWrapper *sstp_init(int sockfd) {
+    SSTPSocketWrapper *stream = malloc(sizeof(SSTPSocketWrapper));
     assert(NULL != stream);
 
     stream->sockfd = sockfd;
@@ -50,7 +50,7 @@ SSTPStream *sstp_init(int sockfd) {
     return stream;
 }
 
-int sstp_read(SSTPStream *stream, SSTPMsg *msg) {
+int sstp_read(SSTPSocketWrapper *stream, SSTPMsg *msg) {
     char buffer[MAX_MSG_LEN + 1];
     int buffer_len = 0;
     int overflow = 0;
@@ -112,7 +112,7 @@ int sstp_read(SSTPStream *stream, SSTPMsg *msg) {
     return 1; // success
 }
 
-int sstp_write(SSTPStream *stream, SSTPMsgType type, char payload[]) {
+int sstp_write(SSTPSocketWrapper *stream, SSTPMsgType type, char payload[]) {
     // create the message
     SSTPMsg msg;
     msg.type = type;
@@ -129,7 +129,7 @@ int sstp_write(SSTPStream *stream, SSTPMsgType type, char payload[]) {
     return sendall(stream->sockfd, buf, &len);
 }
 
-void sstp_destroy(SSTPStream *stream) {
+void sstp_destroy(SSTPSocketWrapper *stream) {
     free(stream);
 }
 
