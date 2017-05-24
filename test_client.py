@@ -71,12 +71,12 @@ def test_two_part_message(socket):
 def test_partial_message(socket):
     socket.send(b'PING\r\nPI')
     socket.send(b'NG\r\n')
-    time.sleep(0.5)
+    time.sleep(0.1)
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
 def test_double_message(socket):
     socket.send(b'PING\r\nPING\r\n')
-    time.sleep(0.5)
+    time.sleep(0.1)
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
 def test_too_sort_message(socket):
@@ -123,3 +123,19 @@ def test_basic_sstp_responses(socket):
 
     socket.send(to_sstp('ERRO false error'))
     assert socket.recv() == to_sstp('ERRO ERRO msgs are reserved for the server.')
+
+def test_correct_soln_1(socket):
+    socket.send(b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n')
+    assert socket.recv() == b'OKAY\r\n'
+
+def test_correct_soln_2(socket):
+    socket.send(b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n')
+    assert socket.recv() == b'OKAY\r\n'
+
+def test_correct_soln_3(socket):
+    socket.send(b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n')
+    assert socket.recv() == b'OKAY\r\n'
+
+def test_incorrect_soln(socket):
+    socket.send(b'SOLN 1fffffff 1000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n')
+    assert socket.recv() == to_sstp(b'ERRO Not a valid solution.')

@@ -168,6 +168,14 @@ void *client_handler(void *pconn) {
                 sstp_log_write(sstp, logger, ERRO,
                         "ERRO msgs are reserved for the server.");
                 break;
+            case SOLN:
+                if (soln_verify(msg.payload)) {
+                    sstp_log_write(sstp, logger, OKAY, NULL);
+                } else {
+                    sstp_log_write(sstp, logger, ERRO,
+                        "Not a valid solution.");
+                }
+                break;
             default:
                 sstp_log_write(sstp, logger, ERRO,
                         "Malformed message.");
@@ -211,24 +219,18 @@ void handler_thread_spawner(Connection conn) {
 
 
 int main(int argc, char *argv[]) {
-    // int port;
+    int port;
 
-    // if (argc < 2) {
-    //     fprintf(stderr, "ERROR: no port provided\n");
-    //     exit(1);
-    // }
+    if (argc < 2) {
+        fprintf(stderr, "ERROR: no port provided\n");
+        exit(1);
+    }
 
-    // port = atoi(argv[1]);
+    port = atoi(argv[1]);
 
-    // log_global_init();
+    log_global_init();
 
-    // server(port, handler_thread_spawner);
-
-
-    printf("res: %d\n", soln_verify("1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147"));
-    printf("res: %d\n", soln_verify("1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f"));
-    printf("res: %d\n", soln_verify("1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605"));
-
+    server(port, handler_thread_spawner);
 
     return 0;
 }
