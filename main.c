@@ -17,77 +17,13 @@
 #include <assert.h>
 #include <inttypes.h>
 
+#include "uint256.h"
 #include "log.h"
 #include "server.h"
 #include "sstp-socket-wrapper.h"
-
-#include "uint256.h"
-#include "sha256.h"
+#include "hashcash.h"
 
 #define MAX_LOG_LEN 512
-
-
-/*
- * Initializes the given uint256 values with the given initial value.
- */
-void uint256_init_with_value(BYTE *uint256, uint64_t value) {
-    if (uint256 == NULL) {
-        return;
-    }
-
-    uint256_init(uint256);
-
-    for (int i = 31; i >= 0 && value > 0; i--) {
-        uint256[i] = value & 0xff;
-        value = value >> 8;
-    }
-}
-
-
-/*
- * Converts the given difficulty value into the target value. (32-byte array)
- */
-void difficulty_to_target(BYTE *target, uint32_t difficulty) {
-    BYTE alpha[32];
-    BYTE beta[32];
-    BYTE two[32];
-
-    uint256_init_with_value(beta, difficulty & 0xffffff);
-
-    uint256_init_with_value(two, 2);
-    uint256_exp(alpha, two, 8 * ((difficulty >> 24) - 3));
-
-    uint256_mul(target, beta, alpha);
-}
-
-
-/*
- * Hashes the given value using sha256 twice.
- */
-void sha256twice(BYTE *hash, BYTE *data, int len) {
-    SHA256_CTX ctx;
-
-    sha256_init(&ctx);
-    sha256_update(&ctx, data, len);
-    sha256_final(&ctx, hash);
-
-    sha256_init(&ctx);
-    sha256_update(&ctx, hash, 32);
-    sha256_final(&ctx, hash);
-}
-
-
-/*
- * Concat the given seed and nonce value.
- * Assumes seed is a BYTE array with enough space for the concatenation.
- */
-void concat(BYTE *seed, uint64_t nonce) {
-    seed += 32;
-    for (int i = 7; i >= 0 && nonce > 0; i--) {
-        seed[i] = nonce & 0xff;
-        nonce = nonce >> 8;
-    }
-}
 
 
 /*
@@ -121,23 +57,12 @@ void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution)
  */
 int soln_verify(char *soln_msg) {
     uint32_t difficulty;
-    BYTE seed[40]; // accommodate the concatenated solution
+    BYTE seed[32];
     uint64_t solution;
-    BYTE target[32];
-    BYTE hash[32];
 
-    // parse
     soln_parse(soln_msg, &difficulty, seed, &solution);
 
-    // concat
-    concat(seed, solution);
-    sha256twice(hash, seed, 40);
-
-    // calculate target
-    difficulty_to_target(target, difficulty);
-
-    // compare
-    return -1 == sha256_compare(hash, target);
+    return hashcash_verify(difficulty, seed, solution);
 }
 
 

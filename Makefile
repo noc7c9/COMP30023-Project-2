@@ -9,7 +9,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c99 -lpthread
 PORT = 4480
 
-OBJ = main.o server.o sstp-socket-wrapper.o sstp.o log.o sha256.o
+OBJ = main.o server.o sstp-socket-wrapper.o sstp.o log.o sha256.o hashcash.o
 EXE = server
 
 VALGRIND_OPTS = -v --leak-check=full
@@ -41,9 +41,10 @@ valgrind: $(EXE)
 	valgrind $(VALGRIND_OPTS) --log-file=valgrind.log ./$(EXE) $(PORT)
 
 ## Dependencies
-main.o: server.o sstp-socket-wrapper.o log.o sha256.o uint256.h
+main.o: server.o sstp-socket-wrapper.o log.o hashcash.o
 server.o: server.h
 sstp.o: sstp.h
 sstp-socket-wrapper.o: sstp-socket-wrapper.h sstp.o
 log.o: log.h server.o
+hashcash.o: hashcash.h sha256.o uint256.h
 sha256.o: sha256.h
