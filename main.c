@@ -110,7 +110,7 @@ void *client_handler(void *pconn) {
             case WORK:
                 // reuse the msg.payload to build the response
                 sprintf(msg.payload + 8 + 1 + 64 + 1,
-                        "%" PRIx64, work_solve(msg.payload));
+                        "%016" PRIx64, work_solve(msg.payload));
                 sstp_log_write(sstp, logger, SOLN, msg.payload);
                 break;
             default:

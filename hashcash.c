@@ -54,9 +54,7 @@ void uint256_init_with_value(BYTE *uint256, uint64_t value) {
         return;
     }
 
-    uint256_init(uint256);
-
-    for (int i = 31; i >= 0 && value > 0; i--) {
+    for (int i = 31; i >= 0; i--) {
         uint256[i] = value & 0xff;
         value = value >> 8;
     }
@@ -69,12 +67,15 @@ void uint256_init_with_value(BYTE *uint256, uint64_t value) {
  */
 void concat(BYTE *dst, BYTE *seed, uint64_t nonce) {
     int i;
+
+    // copy over the seed
     for (i = 0; i < 32; i++) {
         dst[i] = seed[i];
     }
 
+    // copy over the nonce value
     dst += 32;
-    for (i = 7; i >= 0 && nonce > 0; i--) {
+    for (i = 7; i >= 0; i--) {
         dst[i] = nonce & 0xff;
         nonce = nonce >> 8;
     }
