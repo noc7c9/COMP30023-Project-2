@@ -140,6 +140,13 @@ void *work_consumer(void *_) {
     int i;
     uint64_t *pstart;
 
+    // create a server logger
+    // for when active_job->logger is unsafe to use
+    Connection server_conn;
+    server_conn.sockfd = -1;
+    strcpy(server_conn.ip, "0.0.0.0");
+    Logger *server_logger = log_init(server_conn);
+
     while (1) {
         pthread_mutex_lock(&active_job_mutex);
         active_job = queue_dequeue(work_queue);
@@ -166,7 +173,10 @@ void *work_consumer(void *_) {
 
             // join all the worker threads (if any)
             for (i = 0; i < active_job->worker_count - 1; i++) {
-                log_print(active_job->logger, "Joining Worker Thread");
+                log_print(active_job->abort
+                        ? server_logger
+                        : active_job->logger,
+                        "Joining Worker Thread");
                 pthread_join(workers[i], NULL);
             }
 
@@ -179,10 +189,10 @@ void *work_consumer(void *_) {
                 sstp_log_write(active_job->write_mutex, active_job->sstp,
                         active_job->logger, SOLN, active_job->msg.payload);
             } else {
-                log_print(active_job->logger, "Aborting Active Job");
+                log_print(server_logger, "Aborting Active Job");
             }
         } else {
-            log_print(active_job->logger, "Skipping Aborted Job");
+            log_print(server_logger, "Skipping Aborted Job");
         }
 
         free(active_job);
