@@ -153,6 +153,14 @@ def test_incorrect_soln(socket):
     socket.send(b'SOLN 1fffffff 1000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n')
     assert socket.recv() == to_sstp(b'ERRO Not a valid solution.')
 
+def test_malformed_soln(socket):
+    socket.send(b'SOLN 1ffffff f0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n')
+    assert socket.recv() == to_sstp('ERRO Malformed message.')
+
+def test_malformed_work(socket):
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26 f1000000023212000 01\r\n')
+    assert socket.recv() == to_sstp('ERRO Malformed message.')
+
 def test_work_1(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
     assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'

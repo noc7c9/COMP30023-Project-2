@@ -23,20 +23,38 @@ int min(int a, int b);
 /***** Public functions
  */
 
-void sstp_parse(char *src, int n, SSTPMsg *msg) {
+void sstp_parse(char *src, int len, SSTPMsg *msg) {
     // start by clearing out the msg object
     memset(msg, 0, sizeof(SSTPMsg));
 
     msg->type = header_to_type(src);
     msg->payload_len = type_to_payload_len(msg->type);
 
+    // verify payload
+    int is_malformed = 0;
+
     // handle messages that are the wrong length
-    int invalid_length = msg->payload_len == 0
+    is_malformed = msg->payload_len == 0
         // payload when there shouldn't be any
-        ? (HEADER_LEN + DELIMITER_LEN) != n
+        ? (HEADER_LEN + DELIMITER_LEN) != len
         // if there is a payload it should be exactly the right length
-        : (HEADER_LEN + 1 + msg->payload_len + DELIMITER_LEN) != n;
-    if (invalid_length) {
+        : (HEADER_LEN + 1 + msg->payload_len + DELIMITER_LEN) != len;
+
+    // SOLN and WORK message should be properly delimited
+    src += HEADER_LEN + 1;
+    switch (msg->type) {
+        case WORK:
+            is_malformed = is_malformed || *(src + 8 + 1 + 64 + 1 + 16) != ' ';
+            // intentional fall-through
+        case SOLN:
+            is_malformed = is_malformed || *(src + 8 + 1 + 64) != ' ';
+            is_malformed = is_malformed || *(src + 8) != ' ';
+            break;
+        default:
+            break;
+    }
+
+    if (is_malformed) {
         msg->type = MALFORMED;
         msg->payload_len = 0;
         return;
@@ -44,7 +62,7 @@ void sstp_parse(char *src, int n, SSTPMsg *msg) {
 
     // copy the payload (if any)
     if (msg->payload_len != 0) {
-        memcpy(msg->payload, src + HEADER_LEN + 1, msg->payload_len);
+        memcpy(msg->payload, src, msg->payload_len);
     }
 }
 
