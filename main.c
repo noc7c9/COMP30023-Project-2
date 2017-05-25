@@ -180,8 +180,12 @@ uint64_t work_solve(char *msg) {
 
     work_parse(msg, &difficulty, seed, &nonce, &worker_count);
 
+    BYTE target[32];
+
+    hashcash_calc_target(target, difficulty);
+
     while (1) {
-        if (hashcash_verify(difficulty, seed, nonce)) {
+        if (hashcash_verify(target, seed, nonce)) {
             return nonce;
         } else {
             nonce++;
@@ -224,7 +228,11 @@ int soln_verify(char *soln_msg) {
 
     soln_parse(soln_msg, &difficulty, seed, &solution);
 
-    return hashcash_verify(difficulty, seed, solution);
+    BYTE target[32];
+
+    hashcash_calc_target(target, difficulty);
+
+    return hashcash_verify(target, seed, solution);
 }
 
 /*

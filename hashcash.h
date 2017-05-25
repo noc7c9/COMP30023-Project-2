@@ -11,7 +11,12 @@
 
 /*
  * Verifies that the given solution is indeed valid for the given seed and
- * difficulty.
+ * target.
  * Returns 1 if it is valid and 0 otherwise.
  */
-int hashcash_verify(uint32_t difficulty, BYTE *seed, uint64_t solution);
+int hashcash_verify(BYTE *target, BYTE *seed, uint64_t solution);
+
+/*
+ * Converts the given difficulty value into the target (a uint256).
+ */
+void hashcash_calc_target(BYTE *target, uint32_t difficulty);
