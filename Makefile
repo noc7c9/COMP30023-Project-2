@@ -9,7 +9,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c99 -lpthread
 PORT = 4480
 
-OBJ = main.o server.o sstp-socket-wrapper.o sstp.o log.o sha256.o hashcash.o
+OBJ = main.o server.o sstp-socket-wrapper.o sstp.o log.o sha256.o hashcash.o queue.o linked_list.o
 EXE = server
 
 VALGRIND_OPTS = -v --leak-check=full
@@ -48,3 +48,5 @@ sstp-socket-wrapper.o: sstp-socket-wrapper.h sstp.o
 log.o: log.h server.o
 hashcash.o: hashcash.h sha256.o uint256.h
 sha256.o: sha256.h
+queue.o: queue.h linked_list.o
+linked_list.o: linked_list.h
