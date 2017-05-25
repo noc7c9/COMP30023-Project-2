@@ -100,7 +100,7 @@ def test_too_sort_message(socket):
     assert socket.recv() == b'PONG\r\n'
 
 def test_too_long_message(socket):
-    socket.send(b'PING' + 2000 * b' ' + b'\r\n')
+    socket.send(b'PING' + 100 * b' ' + b'\r\n')
     assert socket.recv() == to_sstp('ERRO Malformed message.')
     # still works after that though
     socket.send(b'PING\r\n')
@@ -176,26 +176,23 @@ def test_work_5(socket):
     assert socket.recv() == b'SOLN 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000026b9c904\r\n'
 
 def test_immediate_response_while_working(socket):
-    socket.send(b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
-    socket.recv_sleep = 0
-    for _ in range(5):
-        socket.send(b'PING\r\n')
-        assert socket.recv() == b'PONG\r\n'
-    assert socket.recv() == b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
-    time.sleep(0.05)
-    socket.send(b'PING\r\n')
-    assert socket.recv() == b'PONG\r\n'
+    msg = b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n'
+    msg += b'PING\r\n' * 5
+    socket.send(msg)
+    time.sleep(1)
+    assert socket.recv() == (
+            b'PONG\r\n' * 5
+          + b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
+    )
 
-@pytest.mark.skip
 def test_multi_work(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
-    socket.send(b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
-    time.sleep(1)
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
     assert socket.recv() == (
             b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
           + b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n'
-          + b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
+          + b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
     )
 
 def test_abrt_msg(socket):
