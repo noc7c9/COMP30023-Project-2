@@ -31,7 +31,7 @@
  */
 typedef struct {
     // the client that owns this job
-    Connection *conn;
+    Connection conn;
     Logger *logger;
     SSTPSocketWrapper *sstp;
     pthread_mutex_t *write_mutex;
@@ -51,8 +51,9 @@ typedef struct {
 } WorkJob;
 
 // the global work queue and active job
-Queue *work_queue;
-WorkJob *active_job;
+Queue *work_queue = NULL;
+WorkJob *active_job = NULL;
+pthread_mutex_t active_job_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 /***** Helper function prototypes
@@ -68,6 +69,8 @@ void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start,
         uint8_t *worker_count);
 void work_enqueue(Connection *conn, pthread_mutex_t *write_mutex,
         SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg msg);
+void work_abort(Connection conn);
+void work_abort_iter(void *pjob, void *pconn);
 
 // SOLN helper functions
 void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution);
@@ -112,24 +115,33 @@ void *work_consumer(void *_) {
     (void)_; // purposefully unused, so silence the compiler
 
     while (1) {
+        pthread_mutex_lock(&active_job_mutex);
         active_job = queue_dequeue(work_queue);
+        pthread_mutex_unlock(&active_job_mutex);
 
         // solve the work
         uint64_t nonce = active_job->start;
-        while (!hashcash_verify(active_job->target, active_job->seed, nonce)) {
+        while (!hashcash_verify(active_job->target, active_job->seed, nonce)
+                && !active_job->abort && !active_job->solution_found) {
             nonce++;
         }
-        active_job->solution_found = 1;
-        active_job->solution = nonce;
 
-        // found the solution so send it to the client
-        sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
-                "%016" PRIx64, active_job->solution);
-        sstp_log_write(active_job->write_mutex, active_job->sstp,
-                active_job->logger, SOLN, active_job->msg.payload);
+        // did we actually find the solution or abort?
+        pthread_mutex_lock(&active_job_mutex);
+        if (!active_job->abort) {
+            active_job->solution_found = 1;
+            active_job->solution = nonce;
+
+            // found the solution so send it to the client
+            sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
+                    "%016" PRIx64, active_job->solution);
+            sstp_log_write(active_job->write_mutex, active_job->sstp,
+                    active_job->logger, SOLN, active_job->msg.payload);
+        }
 
         free(active_job);
         active_job = NULL;
+        pthread_mutex_unlock(&active_job_mutex);
     }
 
     return NULL;
@@ -154,7 +166,7 @@ void *client_handler(void *pconn) {
     while (0 != (res = sstp_log_read(sstp, logger, &msg))) {
         if (res < 0) {
             perror("ERROR: reading from socket");
-            return NULL;
+            break;
         }
 
         switch (msg.type) {
@@ -184,6 +196,10 @@ void *client_handler(void *pconn) {
             case WORK:
                 work_enqueue(&conn, &write_mutex, sstp, logger, msg);
                 break;
+            case ABRT:
+                work_abort(conn);
+                sstp_log_write(&write_mutex, sstp, logger, OKAY, NULL);
+                break;
             default:
                 sstp_log_write(&write_mutex, sstp, logger, ERRO,
                         "Malformed message.");
@@ -194,6 +210,7 @@ void *client_handler(void *pconn) {
     log_print(logger, "Disconnected");
 
     // clean up
+    work_abort(conn);
     sstp_destroy(sstp);
     log_destroy(logger);
     close(conn.sockfd);
@@ -252,7 +269,7 @@ void work_enqueue(Connection *conn, pthread_mutex_t *write_mutex,
     WorkJob *job = (WorkJob *) malloc(sizeof(WorkJob));
     assert(job);
 
-    job->conn = conn;
+    job->conn = *conn;
     job->logger = logger;
     job->sstp = sstp;
     job->write_mutex = write_mutex;
@@ -267,6 +284,34 @@ void work_enqueue(Connection *conn, pthread_mutex_t *write_mutex,
     job->solution_found = 0;
 
     queue_enqueue(work_queue, job);
+}
+
+/*
+ * Aborts all queued (and active) work jobs for the given connection (client).
+ * Note: uses the socket file descriptor of each connection to uniquely identify
+ *       them.
+ */
+void work_abort(Connection conn) {
+    // abort the active job (if any)
+    pthread_mutex_lock(&active_job_mutex);
+    if (active_job != NULL && active_job->conn.sockfd == conn.sockfd) {
+        active_job->abort = 1;
+    }
+    pthread_mutex_unlock(&active_job_mutex);
+
+    // abort all other jobs
+    queue_iter(work_queue, work_abort_iter, (void *) &conn);
+}
+
+/*
+ * Iterator over the work queue that aborts each job.
+ */
+void work_abort_iter(void *pjob, void *pconn) {
+    WorkJob *job = (WorkJob *) pjob;
+    Connection *conn = (Connection *) pconn;
+    if (job->conn.sockfd == conn->sockfd) {
+        job->abort = 1;
+    }
 }
 
 

@@ -78,7 +78,7 @@ void queue_destroy(Queue *queue) {
     free(queue);
 }
 
-void queue_iter(Queue *queue, void (*func)(void*)) {
+void queue_iter(Queue *queue, void (*func)(void*, void*), void *second_param) {
     if (func == NULL) {
         return;
     }
@@ -86,7 +86,7 @@ void queue_iter(Queue *queue, void (*func)(void*)) {
     pthread_mutex_lock(&queue->mutex);
 
     for (Node *n = queue->ll->head; n != NULL; n = n->next) {
-        func(n->data);
+        func(n->data, second_param);
     }
 
     pthread_mutex_unlock(&queue->mutex);

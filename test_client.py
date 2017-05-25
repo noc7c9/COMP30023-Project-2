@@ -4,7 +4,7 @@ import pytest
 import socket as socketlib
 import time
 
-BUFFER_SIZE = 100
+BUFFER_SIZE = 1024
 
 sstp_msg_lengths = {
     b'ERRO': 40,
@@ -185,3 +185,23 @@ def test_immediate_response_while_working(socket):
     time.sleep(0.05)
     socket.send(b'PING\r\n')
     assert socket.recv() == b'PONG\r\n'
+
+@pytest.mark.skip
+def test_multi_work(socket):
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
+    socket.send(b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
+    time.sleep(1)
+    assert socket.recv() == (
+            b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
+          + b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n'
+          + b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
+    )
+
+def test_abrt_msg(socket):
+    socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
+    socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
+    socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
+    socket.send(b'ABRT\r\n')
+    socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
+    assert socket.recv() == b'OKAY\r\nSOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'

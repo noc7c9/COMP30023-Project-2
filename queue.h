@@ -45,5 +45,6 @@ void queue_destroy(Queue *queue);
 
 /*
  * Runs the given function on every element of the queue.
+ * Passes second_param as the second parameter to the function.
  */
-void queue_iter(Queue *queue, void (*func)(void*));
+void queue_iter(Queue *queue, void (*func)(void*, void*), void *second_param);
