@@ -1,7 +1,6 @@
 #!python3
 
 import pytest
-import types
 import socket as socketlib
 import time
 
@@ -32,8 +31,11 @@ class Socket:
 
     def __init__(self, socket):
         self.socket = socket
+        self.recv_sleep = 0
 
     def recv(self):
+        if self.recv_sleep > 0:
+            time.sleep(self.recv_sleep)
         data = self.socket.recv(BUFFER_SIZE)
         if len(data) == 0:
             raise RuntimeError("Disconnected")
@@ -49,12 +51,25 @@ class Socket:
             total_sent += sent
 
 
+# decide what to connect to
+addr, port = ('localhost', pytest.config.getoption('--port') or 4480)
+recv_sleep = 0.05
+if pytest.config.getoption('--digitalis'):
+    addr = 'digitalis.eng.unimelb.edu.au'
+    recv_sleep = 1
+elif pytest.config.getoption('--digitalis2'):
+    addr = 'digitalis2.eng.unimelb.edu.au'
+    recv_sleep = 1
+
 @pytest.fixture
 def socket():
     socket = socketlib.socket(socketlib.AF_INET, socketlib.SOCK_STREAM)
-    socket.connect(('localhost', 4480))
+    wrapper = Socket(socket)
 
-    yield Socket(socket)
+    socket.connect((addr, port))
+    wrapper.recv_sleep = recv_sleep
+
+    yield wrapper
 
     socket.close()
 
@@ -71,12 +86,10 @@ def test_two_part_message(socket):
 def test_partial_message(socket):
     socket.send(b'PING\r\nPI')
     socket.send(b'NG\r\n')
-    time.sleep(0.1)
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
 def test_double_message(socket):
     socket.send(b'PING\r\nPING\r\n')
-    time.sleep(0.1)
     assert socket.recv() == b'PONG\r\nPONG\r\n'
 
 def test_too_sort_message(socket):
@@ -140,12 +153,10 @@ def test_incorrect_soln(socket):
     socket.send(b'SOLN 1fffffff 1000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n')
     assert socket.recv() == to_sstp(b'ERRO Not a valid solution.')
 
-# @pytest.mark.skip
 def test_work_1(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
     assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
 
-# @pytest.mark.skip
 def test_work_2(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
     assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n'
