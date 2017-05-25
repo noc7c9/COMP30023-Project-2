@@ -6,7 +6,7 @@
 #
 
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c99 -lpthread
+CFLAGS = -Wall -Wextra -pedantic -std=c99 -lpthread -O2
 PORT = 4480
 
 OBJ = main.o server.o sstp-socket-wrapper.o sstp.o log.o sha256.o hashcash.o queue.o linked_list.o
