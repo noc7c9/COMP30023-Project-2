@@ -24,6 +24,7 @@
 #include "hashcash.h"
 #include "queue.h"
 
+#define MAX_WORKERS 0xff
 #define MAX_LOG_LEN 512
 
 /*
@@ -60,6 +61,7 @@ pthread_mutex_t active_job_mutex = PTHREAD_MUTEX_INITIALIZER;
  */
 
 // Main functions
+void *work_solver_thread(void *pstart);
 void *work_consumer(void *_);
 void *client_handler(void *pconn);
 void handler_thread_spawner(Connection conn);
@@ -109,34 +111,78 @@ int main(int argc, char *argv[]) {
 }
 
 /*
+ * Thread that actually finds a valid proof-of-work nonce value.
+ */
+void *work_solver_thread(void *pstart) {
+    uint64_t nonce = *((uint64_t *)pstart);
+    free(pstart);
+
+    while (!hashcash_verify(active_job->target, active_job->seed, nonce)
+            && !active_job->abort && !active_job->solution_found) {
+        // skip over the numbers other threads will handle
+        nonce += active_job->worker_count;
+    }
+    if (!active_job->abort && !active_job->solution_found) {
+        active_job->solution_found = 1;
+        active_job->solution = nonce;
+    }
+
+    return NULL;
+}
+
+/*
  * Handles work jobs that land in the work queue.
  */
 void *work_consumer(void *_) {
     (void)_; // purposefully unused, so silence the compiler
+
+    pthread_t workers[MAX_WORKERS];
+    int i;
+    uint64_t *pstart;
 
     while (1) {
         pthread_mutex_lock(&active_job_mutex);
         active_job = queue_dequeue(work_queue);
         pthread_mutex_unlock(&active_job_mutex);
 
-        // solve the work
-        uint64_t nonce = active_job->start;
-        while (!hashcash_verify(active_job->target, active_job->seed, nonce)
-                && !active_job->abort && !active_job->solution_found) {
-            nonce++;
-        }
-
-        // did we actually find the solution or abort?
-        pthread_mutex_lock(&active_job_mutex);
         if (!active_job->abort) {
-            active_job->solution_found = 1;
-            active_job->solution = nonce;
+            // solve the work, spawning workers if necessary
+            for (i = 0; i < active_job->worker_count - 1; i++) {
+                log_print(active_job->logger, "Spawning Worker Thread");
 
-            // found the solution so send it to the client
-            sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
-                    "%016" PRIx64, active_job->solution);
-            sstp_log_write(active_job->write_mutex, active_job->sstp,
-                    active_job->logger, SOLN, active_job->msg.payload);
+                // each thread starts on a different initial nonce
+                pstart = (uint64_t *) malloc(sizeof(uint64_t));
+                assert(pstart);
+                *pstart = active_job->start++;
+
+                pthread_create(workers + i, NULL, work_solver_thread, (void *) pstart);
+            }
+
+            // the consumer also handles one portion of the work
+            pstart = (uint64_t *) malloc(sizeof(uint64_t));
+            assert(pstart);
+            *pstart = active_job->start;
+            work_solver_thread((void *) pstart);
+
+            // join all the worker threads (if any)
+            for (i = 0; i < active_job->worker_count - 1; i++) {
+                log_print(active_job->logger, "Joining Worker Thread");
+                pthread_join(workers[i], NULL);
+            }
+
+            // did we actually find the solution or abort?
+            pthread_mutex_lock(&active_job_mutex);
+            if (!active_job->abort && active_job->solution_found) {
+                // found the solution so send it to the client
+                sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
+                        "%016" PRIx64, active_job->solution);
+                sstp_log_write(active_job->write_mutex, active_job->sstp,
+                        active_job->logger, SOLN, active_job->msg.payload);
+            } else {
+                log_print(active_job->logger, "Aborting Active Job");
+            }
+        } else {
+            log_print(active_job->logger, "Skipping Aborted Job");
         }
 
         free(active_job);
