@@ -22,24 +22,62 @@
 #include "server.h"
 #include "sstp-socket-wrapper.h"
 #include "hashcash.h"
+#include "queue.h"
 
 #define MAX_LOG_LEN 512
+
+/*
+ * The struct that represents a job.
+ */
+typedef struct {
+    // the client that owns this job
+    Connection *conn;
+    Logger *logger;
+    SSTPSocketWrapper *sstp;
+    pthread_mutex_t *write_mutex;
+
+    // the WORK information
+    SSTPMsg msg; // the original work message
+    uint32_t difficulty;
+    BYTE target[32];
+    BYTE seed[32];
+    uint64_t start;
+    uint8_t worker_count;
+    uint64_t solution;
+
+    // flags
+    char abort;
+    char solution_found;
+} WorkJob;
+
+// the global work queue and active job
+Queue *work_queue;
+WorkJob *active_job;
 
 
 /***** Helper function prototypes
  */
 
-uint64_t work_solve(char *msg);
-void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start,
-        uint8_t *worker_count);
-void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution);
-int soln_verify(char *soln_msg);
-void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload);
-int sstp_log_read(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg *msg);
-int sstp_log_write(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsgType type,
-        char payload[]);
+// Main functions
+void *work_consumer(void *_);
 void *client_handler(void *pconn);
 void handler_thread_spawner(Connection conn);
+
+// WORK helper functions
+void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start,
+        uint8_t *worker_count);
+void work_enqueue(Connection *conn, pthread_mutex_t *write_mutex,
+        SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg msg);
+
+// SOLN helper functions
+void soln_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *solution);
+int soln_verify(char *soln_msg);
+
+// SSTP logging helper functions
+void sstp_log(Logger *logger, char *prefix, SSTPMsgType type, char *payload);
+int sstp_log_read(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg *msg);
+int sstp_log_write(pthread_mutex_t *write_mutex, SSTPSocketWrapper *sstp,
+        Logger *logger, SSTPMsgType type, char payload[]);
 
 
 /***** Main functions
@@ -57,9 +95,44 @@ int main(int argc, char *argv[]) {
 
     log_global_init();
 
+    // create the work queue and consumer
+    work_queue = queue_init();
+    pthread_t tid;
+    pthread_create(&tid, NULL, work_consumer, NULL);
+
     server(port, handler_thread_spawner);
 
     return 0;
+}
+
+/*
+ * Handles work jobs that land in the work queue.
+ */
+void *work_consumer(void *_) {
+    (void)_; // purposefully unused, so silence the compiler
+
+    while (1) {
+        active_job = queue_dequeue(work_queue);
+
+        // solve the work
+        uint64_t nonce = active_job->start;
+        while (!hashcash_verify(active_job->target, active_job->seed, nonce)) {
+            nonce++;
+        }
+        active_job->solution_found = 1;
+        active_job->solution = nonce;
+
+        // found the solution so send it to the client
+        sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
+                "%016" PRIx64, active_job->solution);
+        sstp_log_write(active_job->write_mutex, active_job->sstp,
+                active_job->logger, SOLN, active_job->msg.payload);
+
+        free(active_job);
+        active_job = NULL;
+    }
+
+    return NULL;
 }
 
 /*
@@ -71,6 +144,7 @@ void *client_handler(void *pconn) {
 
     Logger *logger = log_init(conn);
     SSTPSocketWrapper *sstp = sstp_init(conn.sockfd);
+    pthread_mutex_t write_mutex = PTHREAD_MUTEX_INITIALIZER;
 
     log_print(logger, "Connected");
 
@@ -85,36 +159,33 @@ void *client_handler(void *pconn) {
 
         switch (msg.type) {
             case PING:
-                sstp_log_write(sstp, logger, PONG, NULL);
+                sstp_log_write(&write_mutex, sstp, logger, PONG, NULL);
                 break;
             case PONG:
-                sstp_log_write(sstp, logger, ERRO,
+                sstp_log_write(&write_mutex, sstp, logger, ERRO,
                         "PONG msgs are reserved for the server.");
                 break;
             case OKAY:
-                sstp_log_write(sstp, logger, ERRO,
+                sstp_log_write(&write_mutex, sstp, logger, ERRO,
                         "OKAY msgs are reserved for the server.");
                 break;
             case ERRO:
-                sstp_log_write(sstp, logger, ERRO,
+                sstp_log_write(&write_mutex, sstp, logger, ERRO,
                         "ERRO msgs are reserved for the server.");
                 break;
             case SOLN:
                 if (soln_verify(msg.payload)) {
-                    sstp_log_write(sstp, logger, OKAY, NULL);
+                    sstp_log_write(&write_mutex, sstp, logger, OKAY, NULL);
                 } else {
-                    sstp_log_write(sstp, logger, ERRO,
+                    sstp_log_write(&write_mutex, sstp, logger, ERRO,
                         "Not a valid solution.");
                 }
                 break;
             case WORK:
-                // reuse the msg.payload to build the response
-                sprintf(msg.payload + 8 + 1 + 64 + 1,
-                        "%016" PRIx64, work_solve(msg.payload));
-                sstp_log_write(sstp, logger, SOLN, msg.payload);
+                work_enqueue(&conn, &write_mutex, sstp, logger, msg);
                 break;
             default:
-                sstp_log_write(sstp, logger, ERRO,
+                sstp_log_write(&write_mutex, sstp, logger, ERRO,
                         "Malformed message.");
                 break;
         }
@@ -147,7 +218,7 @@ void handler_thread_spawner(Connection conn) {
 
     // create the thread
     pthread_t tid;
-    pthread_create(&tid, NULL, client_handler, (void *) pconn);
+    pthread_create(&tid, &attr, client_handler, (void *) pconn);
 
     // clean up
     pthread_attr_destroy(&attr);
@@ -157,10 +228,14 @@ void handler_thread_spawner(Connection conn) {
 /***** Helper functions
  */
 
+/******** WORK msg helper functions
+ */
+
 /*
  * Parse the given WORK message.
  */
-void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start, uint8_t *worker_count) {
+void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start,
+        uint8_t *worker_count) {
     // read everything but the worker count
     soln_parse(msg, difficulty, seed, start);
     msg += 8 + 1 + 64 + 1 + 16 + 1;
@@ -170,28 +245,33 @@ void work_parse(char *msg, uint32_t *difficulty, BYTE *seed, uint64_t *start, ui
 }
 
 /*
- * Find a valid nonce value for the given WORK msg.
+ * Queue the given WORK msg in the work queue.
  */
-uint64_t work_solve(char *msg) {
-    uint32_t difficulty;
-    BYTE seed[32];
-    uint64_t nonce;
-    uint8_t worker_count;
+void work_enqueue(Connection *conn, pthread_mutex_t *write_mutex,
+        SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg msg) {
+    WorkJob *job = (WorkJob *) malloc(sizeof(WorkJob));
+    assert(job);
 
-    work_parse(msg, &difficulty, seed, &nonce, &worker_count);
+    job->conn = conn;
+    job->logger = logger;
+    job->sstp = sstp;
+    job->write_mutex = write_mutex;
 
-    BYTE target[32];
+    job->msg = msg;
 
-    hashcash_calc_target(target, difficulty);
+    work_parse(msg.payload, &job->difficulty, job->seed, &job->start, &job->worker_count);
+    hashcash_calc_target(job->target, job->difficulty);
 
-    while (1) {
-        if (hashcash_verify(target, seed, nonce)) {
-            return nonce;
-        } else {
-            nonce++;
-        }
-    }
+    job->solution = 0;
+    job->abort = 0;
+    job->solution_found = 0;
+
+    queue_enqueue(work_queue, job);
 }
+
+
+/******** SOLN msg helper functions
+ */
 
 /*
  * Parse the given SOLN message.
@@ -234,6 +314,10 @@ int soln_verify(char *soln_msg) {
 
     return hashcash_verify(target, seed, solution);
 }
+
+
+/******** SSTP logging helper functions
+ */
 
 /*
  * Helper to log sstp messages.
@@ -288,10 +372,17 @@ int sstp_log_read(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsg *msg) {
 /*
  * Wrapper around sstp_write that logs the call.
  */
-int sstp_log_write(SSTPSocketWrapper *sstp, Logger *logger, SSTPMsgType type, char payload[]) {
+int sstp_log_write(pthread_mutex_t *write_mutex, SSTPSocketWrapper *sstp,
+        Logger *logger, SSTPMsgType type, char payload[]) {
+
+    pthread_mutex_lock(write_mutex);
+
     int res = sstp_write(sstp, type, payload);
     if (res == 0) { // log only if successful
         sstp_log(logger, "Sending:  ", type, payload);
     }
+
+    pthread_mutex_unlock(write_mutex);
+
     return res;
 }
