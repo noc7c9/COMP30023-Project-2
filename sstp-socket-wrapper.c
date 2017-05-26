@@ -164,7 +164,7 @@ char *strnstr(char *haystack, char *needle, int n) {
 int sendall(int s, char *buf, int *len) {
     int total = 0;        // how many bytes we've sent
     int bytesleft = *len; // how many we have left to send
-    int n;
+    int n = 0;
 
     while (total < *len) {
         n = send(s, buf+total, bytesleft, 0);
