@@ -55,7 +55,7 @@ Logger *log_init(Connection conn) {
     Logger *logger = malloc(sizeof(Logger));
     assert(NULL != logger);
 
-    sprintf(logger->header, "[ %s (%d) %%s ] ", conn.ip, conn.sockfd);
+    sprintf(logger->header, "[ %%s %15s (%3d) ] ", conn.ip, conn.sockfd);
 
     return logger;
 }
