@@ -219,12 +219,16 @@ void *work_consumer(void *_) {
 
             // did we actually find the solution or abort?
             pthread_mutex_lock(&active_job_mutex);
-            if (!active_job->abort && active_job->solution_found) {
-                // found the solution so send it to the client
-                sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
-                        "%016" PRIx64, active_job->solution);
-                sstp_log_write(active_job->write_mutex, active_job->sstp,
-                        active_job->logger, SOLN, active_job->msg.payload);
+            if (!active_job->abort) {
+                if (active_job->solution_found) {
+                    // found the solution so send it to the client
+                    sprintf(active_job->msg.payload + 8 + 1 + 64 + 1,
+                            "%016" PRIx64, active_job->solution);
+                    sstp_log_write(active_job->write_mutex, active_job->sstp,
+                            active_job->logger, SOLN, active_job->msg.payload);
+                } else {
+                    log_print(server_logger, "No Solution Found");
+                }
             } else {
                 log_print(server_logger, "Aborting Active Job");
             }
