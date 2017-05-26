@@ -24,8 +24,24 @@
 #include "hashcash.h"
 #include "queue.h"
 
+// Which load balancing method to use?
+//
+// INTERSPERSED
+// eg:
+//      thread 0: 0, 2, 4, ... (ie. all even numbers)
+//      thread 1: 1, 3, 5, ... (ie. all odd numbers)
+//
+// BLOCKED
+// eg: (assuming a search space of size 1 byte)
+//      thread 0:   0,   1,   2, ... (ie.   0-127)
+//      thread 1: 128, 129, 130, ... (ie. 128-255)
+//
+#define USE_BLOCKED_LOAD_BALANCING
+
+
 #define MAX_WORKERS 0xff
 #define MAX_LOG_LEN 512
+
 
 /*
  * The struct that represents a job.
@@ -115,14 +131,24 @@ int main(int argc, char *argv[]) {
  */
 void *work_solver_thread(void *pstart) {
     uint64_t nonce = *((uint64_t *)pstart);
+    uint64_t initial_nonce = nonce;
     free(pstart);
 
     while (!hashcash_verify(active_job->target, active_job->seed, nonce)
             && !active_job->abort && !active_job->solution_found) {
+#ifdef USE_BLOCKED_LOAD_BALANCING
+        nonce++;
+#else
         // skip over the numbers other threads will handle
         nonce += active_job->worker_count;
+#endif
+        // stop if nonce rolled over
+        if (nonce < initial_nonce) {
+            break;
+        }
     }
-    if (!active_job->abort && !active_job->solution_found) {
+    if (!active_job->abort && !active_job->solution_found
+            && nonce > initial_nonce) {
         active_job->solution_found = 1;
         active_job->solution = nonce;
     }
@@ -153,6 +179,11 @@ void *work_consumer(void *_) {
         pthread_mutex_unlock(&active_job_mutex);
 
         if (!active_job->abort) {
+#ifdef USE_BLOCKED_LOAD_BALANCING
+            uint64_t start_diff = UINT64_MAX - active_job->start;
+            start_diff /= active_job->worker_count;
+#endif
+
             // solve the work, spawning workers if necessary
             for (i = 0; i < active_job->worker_count - 1; i++) {
                 log_print(active_job->logger, "Spawning Worker Thread");
@@ -160,7 +191,13 @@ void *work_consumer(void *_) {
                 // each thread starts on a different initial nonce
                 pstart = (uint64_t *) malloc(sizeof(uint64_t));
                 assert(pstart);
+
+#ifdef USE_BLOCKED_LOAD_BALANCING
+                *pstart = active_job->start;
+                active_job->start += start_diff;
+#else
                 *pstart = active_job->start++;
+#endif
 
                 pthread_create(workers + i, NULL, work_solver_thread, (void *) pstart);
             }

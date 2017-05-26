@@ -163,45 +163,64 @@ def test_malformed_work(socket):
 
 def test_work_1(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
-    assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
+    soln = socket.recv()
+    assert soln.startswith(b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
 
 def test_work_2(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
-    assert socket.recv() == b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n'
+    soln = socket.recv()
+    assert soln.startswith(b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
 
 def test_work_3(socket):
     socket.send(b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
-    assert socket.recv() == b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
+    soln = socket.recv()
+    assert soln.startswith(b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
 
 @pytest.mark.skip
 def test_work_4(socket):
     socket.send(b'WORK 1dffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
-    assert socket.recv() == b'SOLN 1dffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023f6c072\r\n'
+    soln = socket.recv()
+    assert soln.startswith(b'SOLN 1dffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
 
 @pytest.mark.skip
 def test_work_5(socket):
     socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
-    assert socket.recv() == b'SOLN 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000026b9c904\r\n'
+    soln = socket.recv()
+    assert soln.startswith(b'SOLN 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
 
 def test_immediate_response_while_working(socket):
     msg = b'WORK 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n'
     msg += b'PING\r\n' * 5
     socket.send(msg)
     time.sleep(1)
-    assert socket.recv() == (
-            b'PONG\r\n' * 5
-          + b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 100000002321ed8f\r\n'
-    )
+    soln = socket.recv()
+    assert soln.startswith(b'PONG\r\n' * 5)
+    soln = soln.replace(b'PONG\r\n' * 5, b'')
+    assert soln.startswith(b'SOLN 1effffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
 
 def test_multi_work(socket):
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 01\r\n')
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
-    assert socket.recv() == (
-            b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
-          + b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212605\r\n'
-          + b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
-    )
+
+    for soln in socket.recv().split(b'\r\n'):
+        if soln == b'': continue
+        soln += b'\r\n'
+        assert soln.startswith(b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+        socket.send(soln)
+        assert socket.recv() == b'OKAY\r\n'
 
 def test_abrt_msg(socket):
     socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
@@ -209,4 +228,10 @@ def test_abrt_msg(socket):
     socket.send(b'WORK 1d29ffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212399 04\r\n')
     socket.send(b'ABRT\r\n')
     socket.send(b'WORK 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212000 01\r\n')
-    assert socket.recv() == b'OKAY\r\nSOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f 1000000023212147\r\n'
+
+    soln = socket.recv()
+    assert soln.startswith(b'OKAY\r\n')
+    soln = soln.replace(b'OKAY\r\n', b'')
+    assert soln.startswith(b'SOLN 1fffffff 0000000019d6689c085ae165831e934ff763ae46a218a6c172b3f1b60a8ce26f')
+    socket.send(soln)
+    assert socket.recv() == b'OKAY\r\n'
