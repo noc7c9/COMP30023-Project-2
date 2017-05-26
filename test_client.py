@@ -4,6 +4,7 @@ import pytest
 import socket as socketlib
 import time
 
+RECV_TIMEOUT = 10 # seconds
 BUFFER_SIZE = 1024
 
 sstp_msg_lengths = {
@@ -31,6 +32,7 @@ class Socket:
 
     def __init__(self, socket):
         self.socket = socket
+        self.socket.settimeout(RECV_TIMEOUT)
         self.recv_sleep = 0
 
     def recv(self):
